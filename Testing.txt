@@ -5,13 +5,13 @@ Error handling with C# and Rust
 written by Ruud van Asseldonk
 published 17 June, 2015
 
-When I first learned about monadic error handling, I was delighted. Error handling is something that every robust program has to deal with. There are various approaches to it, but often a programming language forces its particular paradigm on you. For most mainstream languages, this means exceptions. Monadic error handling is a less widespread alternative. Algebraic data types allow for the return type of a function to encode an error type in addition to a ìsuccessî type, and monads are the tool to combine such functions with ease.
+When I first learned about monadic error handling, I was delighted. Error handling is something that every robust program has to deal with. There are various approaches to it, but often a programming language forces its particular paradigm on you. For most mainstream languages, this means exceptions. Monadic error handling is a less widespread alternative. Algebraic data types allow for the return type of a function to encode an error type in addition to a ‚Äúsuccess‚Äù type, and monads are the tool to combine such functions with ease.
 
 In C#, exceptions are the standard way of doing error handling. I have written plenty of C# code that deals with exceptions, and it is a pain to do it correctly. Apart from null, it might very well be the biggest design mistake of the language. I was delighted when I learned about monadic error handling, with the Either type in Haskell. Obviously this was the right approach to error handling, elegant and effective.
 
-Along came Rust, and I immediately fell in love with it. It appeared to do everything right that C# did wrong. Not only did it feature the absence of null (an entire class of problems Ö gone!), it also had unrecoverable failures (now called panics), and monadic error handling for the cases where errors are not exceptional.
+Along came Rust, and I immediately fell in love with it. It appeared to do everything right that C# did wrong. Not only did it feature the absence of null (an entire class of problems ‚Ä¶ gone!), it also had unrecoverable failures (now called panics), and monadic error handling for the cases where errors are not exceptional.
 
-Fast forward one year. Claxon ó my pure-Rust decoder for the FLAC codec ó decoded its entire test suite correctly for the first time a week ago. With Hound, a Rust library for handling WAV files, I could verify the output against the reference decoder. When dealing with these binary formats, things can fail at several levels: apart from IO errors, there are the issues of ill-formed data and incorrect usage of the library (e.g. writing an odd number of samples to a stereo stream). So, I got to do some error handling in Rust.
+Fast forward one year. Claxon ‚Äî my pure-Rust decoder for the FLAC codec ‚Äî decoded its entire test suite correctly for the first time a week ago. With Hound, a Rust library for handling WAV files, I could verify the output against the reference decoder. When dealing with these binary formats, things can fail at several levels: apart from IO errors, there are the issues of ill-formed data and incorrect usage of the library (e.g. writing an odd number of samples to a stereo stream). So, I got to do some error handling in Rust.
 
 Aside from a few toy programs in Scala and Haskell, I had not used monadic error handling before. Claxon and Hound are my first serious projects where I got to see how my expectations would hold up. Mostly, monadic error handling is a breeze, but it has its downsides too.
 Liar, liar!
@@ -80,7 +80,7 @@ public static uint CheckNextVersion(IEnumerable<uint> previousVersions,
 
 Code analysis is still very unhappy about this. In particular it wants us to change the exception definition oneliners into 23-line beasts with four constructors, but in this post I would like to keep it brief.
 
-Rust has an honest type system, so we must be honest with the return type. If a method in C# has return type T and throws an exception of type E, the Rust return type would be Result<T, E>. A result value can either be Ok(T) or Err(E). Letís give that a try:
+Rust has an honest type system, so we must be honest with the return type. If a method in C# has return type T and throws an exception of type E, the Rust return type would be Result<T, E>. A result value can either be Ok(T) or Err(E). Let‚Äôs give that a try:
 
 pub struct InvalidVersionError;
 
@@ -95,9 +95,9 @@ pub fn check_next_version(previous_versions: &[u32],
     }
 }
 
-ìError,î the compiler says! Uh oh. ìBinary operation < cannot be applied to Result<u32, ParseIntError>.î While a parse method returning an integer is perfectly fine in C#, there is no place for such blatant lies in an honest language. Parsing can fail, so parse does not return a u32, it returns a Result. Where you can ignore the problem in C#, Rust forces us to consider all cases.
+‚ÄúError,‚Äù the compiler says! Uh oh. ‚ÄúBinary operation < cannot be applied to Result<u32, ParseIntError>.‚Äù While a parse method returning an integer is perfectly fine in C#, there is no place for such blatant lies in an honest language. Parsing can fail, so parse does not return a u32, it returns a Result. Where you can ignore the problem in C#, Rust forces us to consider all cases.
 
-To fix the error, we first need a way to return either ParseFailed or InvalidVersion from the function. Result has only one error type, so we need a single type that can be either of the two errors: an enum. Letís try again:
+To fix the error, we first need a way to return either ParseFailed or InvalidVersion from the function. Result has only one error type, so we need a single type that can be either of the two errors: an enum. Let‚Äôs try again:
 
 pub enum KelvinError {
     ParseFailed,
@@ -118,9 +118,9 @@ pub fn check_next_version(previous_versions: &[u32],
     }
 }
 
-ìErrorî again, right after the <. Ouch. ìMismatched types: expected u32, found Option<u32>.î The compiler is telling us that an empty set has no minimum. With the dishonest type system of C#, this edge case is easy to forget, and the app could have crashed in production on an InvalidOperationException. Rust prevents these bugs at compile time.
+‚ÄúError‚Äù again, right after the <. Ouch. ‚ÄúMismatched types: expected u32, found Option<u32>.‚Äù The compiler is telling us that an empty set has no minimum. With the dishonest type system of C#, this edge case is easy to forget, and the app could have crashed in production on an InvalidOperationException. Rust prevents these bugs at compile time.
 
-While we fix this, letís add a distinct error for NewReleaseImpossible as well. Additionally, getting the types right will allow us to drop the ::<u32> part from parse. Type inference in Rust is much more advanced than the simple var in C#. Because version is compared with min a few lines later, the compiler is able to infer that version must be a u32 just like min. This is great when you get the types right, but it can lead to less comprehensible compiler errors when you get them wrong.
+While we fix this, let‚Äôs add a distinct error for NewReleaseImpossible as well. Additionally, getting the types right will allow us to drop the ::<u32> part from parse. Type inference in Rust is much more advanced than the simple var in C#. Because version is compared with min a few lines later, the compiler is able to infer that version must be a u32 just like min. This is great when you get the types right, but it can lead to less comprehensible compiler errors when you get them wrong.
 
 pub enum KelvinError {
     ParseFailed,
@@ -148,7 +148,7 @@ pub fn check_next_version(previous_versions: &[u32],
     }
 }
 
-This version compiles, and I would say it is about as verbose as the C# version apart from the lack of null checks. (Rustís type sytem is honest. It does not have null.) The difference between C# and Rust here is not so much in the version with proper error handling, it is in the version without: the Rust compiler refused to compile it, whereas the C# version crashed at runtime.
+This version compiles, and I would say it is about as verbose as the C# version apart from the lack of null checks. (Rust‚Äôs type sytem is honest. It does not have null.) The difference between C# and Rust here is not so much in the version with proper error handling, it is in the version without: the Rust compiler refused to compile it, whereas the C# version crashed at runtime.
 Error propagation
 
 The comparison above is not entirely fair. In the example, we handled all exceptions. The true power of exceptions though, lies in not handling them. They automatically propagate down the call stack, until a handler is encountered.
@@ -203,17 +203,17 @@ fn cat(first: &mut File, second: &mut File) -> Result<Vec<u8>, io::Error> {
     Ok(buffer)
 }
 
-Apart from try!, there are also methods like map and and_then (the monad ëbindí operation) for the more functionally inclined.
+Apart from try!, there are also methods like map and and_then (the monad ‚Äòbind‚Äô operation) for the more functionally inclined.
 The downside
 
-Monadic error handling seems too good to be true. With algebraic data types, the errors that a function can return are known and checked at compile time. It allows for error handling to be expressed in an exceptionally elegant way. Where is the tradeoff? When writing Claxon, I ran into one downside in particular. You wonít see it in the above examples, because it is not there after the program has been written. It is an issue with debuggability.
+Monadic error handling seems too good to be true. With algebraic data types, the errors that a function can return are known and checked at compile time. It allows for error handling to be expressed in an exceptionally elegant way. Where is the tradeoff? When writing Claxon, I ran into one downside in particular. You won‚Äôt see it in the above examples, because it is not there after the program has been written. It is an issue with debuggability.
 
 The error type of a Result carries no more information than strictly necessary. On the one hand this makes them very efficient, but on the other hand they lack critical debugging context. In particular, a typical error does not contain a site of origin, no call stack, nor a traceroute to the current call site. Take the cat function above, for instance. Suppose it returns Err(err), where err is an io::Error. Its description() contains all information about what went wrong reading, but it does not tell you which of the two reads failed. Combining functions that may fail is easy with try!, but disentangling them after something has failed is a pain.
 
-Furthermore, Visual Studio has outstanding tooling for exceptions. You can select specifically to break on some exceptions when thrown, or when unhandled by user code. .NET exceptions contain a full stack trace and information about the target site. All of this is currently not possible with Rustís Result, though I think this is not a fundamental impossibility. I can imagine the compiler inserting a breakpoint when an Err is constructed, and maybe an error type can carry a list of source locations when compiled in debug mode. The try! macro could push its location in the source file before it propagates the error. This would attach traceroute-like information to an error in debug mode, and the release build would be every bit as efficient. Nevertheless, Rust is a young language, and I am not aware of any features like these today.
+Furthermore, Visual Studio has outstanding tooling for exceptions. You can select specifically to break on some exceptions when thrown, or when unhandled by user code. .NET exceptions contain a full stack trace and information about the target site. All of this is currently not possible with Rust‚Äôs Result, though I think this is not a fundamental impossibility. I can imagine the compiler inserting a breakpoint when an Err is constructed, and maybe an error type can carry a list of source locations when compiled in debug mode. The try! macro could push its location in the source file before it propagates the error. This would attach traceroute-like information to an error in debug mode, and the release build would be every bit as efficient. Nevertheless, Rust is a young language, and I am not aware of any features like these today.
 Conclusion
 
-Exceptions and results are two ways to do error handling, both with their advantages and disadvantages. The big downside of exceptions in C#, is that handling them can be ó and will be ó ignored or forgotten. This leads to crashes, crashes that may make it into the field. A proper type system like Rustís can prevent these errors at compile time. There is room for improvement on the debugging side, but nonetheless monadic error handling with algebraic data types is a powerful tool.
+Exceptions and results are two ways to do error handling, both with their advantages and disadvantages. The big downside of exceptions in C#, is that handling them can be ‚Äî and will be ‚Äî ignored or forgotten. This leads to crashes, crashes that may make it into the field. A proper type system like Rust‚Äôs can prevent these errors at compile time. There is room for improvement on the debugging side, but nonetheless monadic error handling with algebraic data types is a powerful tool.
 
 There are a lot of sides to the subject that I did not touch upon in this post. Performance is an issue that deserves a post in its own right, and the distinction between recoverable and unrecoverable errors (which C# does not make but Rust does) is an interesting issue as well. Niko Matsakis recently wrote about enums versus virtual structs, which relates to exception hierarchies, a way to control the granularity of error handling. Finally, I touched only superficially on the Result type in Rust, and I did not talk about the Error trait at all. If you like to know more about error handling in Rust, Andrew Gallant wrote a fantastic blog post a month ago that dives deep into all of the details. If you had not heard of Rust before but this post got you excited, the book is a great place to start. Rust has an amazing community that is very welcoming to new members.
 
@@ -227,8 +227,3 @@ About me
 
 I love to create beautiful things with elegant code. I particularly like low-level optimisation for bare metal performance and systems programming, but I also enjoy high-level functional programming. I prefer a strong type system over excessive unit testing and I prefer common sense over agile development methodologies. I am mildly allergic to buzzwords. Data should be immutable.
 About
-Writing
-GitHub
-Contact
-
-Copyleft 2016 Ruud van Asseldonk ∑ Source
